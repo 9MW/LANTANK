@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 0fa4974f52ecaf7479c1fd609588a8a7
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences:
+  - explod1: {fileID: 100000, guid: 47da841aeb6119d41bec8175f9d79466, type: 2}
+  - enemyexplod: {fileID: 100000, guid: ba86e00435433ee4da5026eb8bdd5b75, type: 2}
+  - zhuan_clip: {fileID: 8300000, guid: cfaeda422033d7c42bf61d77f888d7c9, type: 3}
+  - plate_clip: {fileID: 8300000, guid: 5b78c1eb81e40054ca47bf442d66f233, type: 3}
+  - enemy_killclip: {fileID: 8300000, guid: 4f951a7648992ff4aa8ae3ff579112cc, type: 3}
+  - enemy_clip: {fileID: 8300000, guid: ccea26e1f68d4c844bd8437a9e7c7263, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
