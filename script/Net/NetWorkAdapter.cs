@@ -29,7 +29,7 @@ public class NetWorkAdapter : NetworkDiscovery
     }
     Queue<byte[]> recieveMsgQue=new Queue<byte[]>(128);
     public Dictionary<int, StrTxt> connectionClient = new Dictionary<int, StrTxt>();
-    byte[] buffer;
+    byte[] buffer = new byte[1024];
     void fresh()
     {
         int outHostId;
@@ -47,7 +47,7 @@ public class NetWorkAdapter : NetworkDiscovery
         do
         {
             dog++;
-            buffer = new byte[1024];
+             
             evt =
 NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, buffer, buffer.Length, out receivedSize, out error);
             quesize = NetworkTransport.GetIncomingMessageQueueSize(outHostId, out error);
@@ -70,7 +70,7 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
                 case NetworkEventType.DataEvent:
                     {
                         
-                        OnData(outHostId, outConnectionId, outChannelId, buffer, receivedSize, (NetworkError)error);
+                        OnData(outHostId, outConnectionId, outChannelId,ref buffer, receivedSize, (NetworkError)error);
                         break;
                     }
                 case NetworkEventType.BroadcastEvent:
@@ -95,13 +95,14 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
     int  GetSize;
     int conuter = 0;
     byte[][] tmpReceive;
-    private void OnData(int outHostId, int outConnectionId, int outChannelId, byte[] buffer, int receivedSize, NetworkError error)
+    private void OnData(int outHostId, int outConnectionId, int outChannelId,ref byte[] buffer, int receivedSize, NetworkError error)
     {
         Debug.Log("Entry OnData receive size="+buffer.Length+ "receivedSize"+ receivedSize);
-        byte[] reallyBytes = new byte[receivedSize];
-        Array.Copy(buffer, 0, reallyBytes, 0, receivedSize);
+        
         if (isHaed)
         {
+            byte[] reallyBytes = new byte[receivedSize];
+            Array.Copy(buffer, 0, reallyBytes, 0, receivedSize);
             Debug.Log("!= HEAD?"+GetString(reallyBytes)+ "!= HEAD?");
             string[] s = splitString(reallyBytes);
           //  Debug.Log("s[2]=" + s[2] +"!= HEAD?");
@@ -109,8 +110,9 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
          //       return;
             isHaed = false;
             GetSize = int.Parse(s[1]);
-            if (GetSize>1024)
-                tmpReceive = new byte[(GetSize / 1024) + 1][];
+            this.buffer = new byte[GetSize];
+          //  if (GetSize>1024)
+           //     tmpReceive = new byte[(GetSize / 1024) + 1][];
             //connectionClient[outConnectionId].setHead(false);
             receiveMsgType = int.Parse(s[0]);
             Debug.Log("receiveMsgType"+receiveMsgType);
@@ -119,40 +121,47 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
             return;
         }
         Debug.Log("Entry Receiver");
-       /*
-        if (conuter< (GetSize / 1024)+1&&GetSize>1024)
+        if (receiveMsgType == msgType.testMessage)
         {
-            
-            tmpReceive[conuter] = buffer;
-            conuter++;
-            if(conuter== (GetSize / 1024) + 1)
-            {
-                isHaed = true;
-                conuter = 0;
-                byte[] wholeMessage = combineBytes(tmpReceive, GetSize);
-                if (receiveMsgType == msgType.testMessage)
-                {
-                    Debug.Log("Receive test message=" + NetWorkAdapter.GetString(wholeMessage));
-                    return;
-                }
-                Receiver(outConnectionId, wholeMessage, receivedSize, receiveMsgType);
-                
-            }
-            return;
-            // GetSize -= conuter * 1024;
-        }
-        
-            if (receiveMsgType == msgType.testMessage)
-            {
-                Debug.Log("Receive test message=" + NetWorkAdapter.GetString(buffer));
-                isHaed = true;
-                return;
-            }
-            Receiver(outConnectionId, buffer, receivedSize, receiveMsgType);
+            Debug.Log("Receive test message=" + NetWorkAdapter.GetString(buffer));
             isHaed = true;
-        */
-       
+            return;
+        }
+        /*
+         if (conuter< (GetSize / 1024)+1&&GetSize>1024)
+         {
+
+             tmpReceive[conuter] = buffer;
+             conuter++;
+             if(conuter== (GetSize / 1024) + 1)
+             {
+                 isHaed = true;
+                 conuter = 0;
+                 byte[] wholeMessage = combineBytes(tmpReceive, GetSize);
+                 if (receiveMsgType == msgType.testMessage)
+                 {
+                     Debug.Log("Receive test message=" + NetWorkAdapter.GetString(wholeMessage));
+                     return;
+                 }
+                 Receiver(outConnectionId, wholeMessage, receivedSize, receiveMsgType);
+
+             }
+             return;
+             // GetSize -= conuter * 1024;
+         }
+
+             if (receiveMsgType == msgType.testMessage)
+             {
+                 Debug.Log("Receive test message=" + NetWorkAdapter.GetString(buffer));
+                 isHaed = true;
+                 return;
+             }   */
+        Receiver(outConnectionId, buffer, receivedSize, receiveMsgType);
+             isHaed = true;
+        buffer = new byte[50];
+
     }
+   public UDPClient UDPC;
     public void asClint()
     {
         if (isClient == true)
@@ -171,7 +180,10 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
             hostId = NetworkTransport.AddHost(topology, broadcastPort);
         }*/
         byte error;
-        NetworkTransport.SetBroadcastCredentials(hostId, broadcastKey, broadcastVersion, broadcastSubVersion, out error);
+
+        if (NetworkTransport.IsBroadcastDiscoveryRunning())
+            NetworkTransport.StopBroadcastDiscovery();
+            NetworkTransport.SetBroadcastCredentials(hostId, broadcastKey, broadcastVersion, broadcastSubVersion, out error);
         running = true;
         isClient = true;
         Debug.Log("hostid=" + hostId + ",error=" + error);
@@ -187,28 +199,34 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
      */
         isServer = false;
         gameObject.AddComponent<Client>();
+        UDPC=gameObject.AddComponent<UDPClient>();
         Destroy(gameObject.GetComponent<Sever>());
-
+        
     }
+   public UDPServer UDPS;
     public void establishHost()
     {
+        if (isServer == true)
+            return;
         gameObject.AddComponent<Sever>();
         Destroy(gameObject.GetComponent<Client>());
-
+        UDPS=gameObject.AddComponent<UDPServer>();
         init();
         /*
         HostTopology topology = new HostTopology(config, 10);
         int hostId = NetworkTransport.AddHost(topology, 8898);*/
+        int severport = UDPS.port;
         
-        
-        broadcastData = hostId + "," + broadcastPort + "," + channelid;
+        broadcastData = hostId + "," + broadcastPort + "," + channelid + ","+severport;
         byte[] massageout = GetBytes(broadcastData);
         byte err = new byte();
-        Debug.Log("broadcastPort" + broadcastPort + "hostId=" + hostId + "NetworkTransport.StartBroadcastDiscovery=" +
-        NetworkTransport.StartBroadcastDiscovery(hostId, broadcastPort, broadcastKey, broadcastVersion, broadcastSubVersion, massageout, massageout.Length, broadcastInterval, out err)
-             + "channelid=" + channelid);
+        if(!NetworkTransport.IsBroadcastDiscoveryRunning())
+        NetworkTransport.StartBroadcastDiscovery(hostId, broadcastPort, broadcastKey, broadcastVersion, broadcastSubVersion, massageout, massageout.Length, broadcastInterval, out err);
+        Debug.Log("broadcastPort" + severport + "hostId=" + hostId + "NetworkTransport.StartBroadcastDiscovery=" +
+       "channelid=" + channelid);
         running = true;
         isServer = true;
+        
         //         StartAsServer();
 
     }
@@ -232,6 +250,9 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
         receiveHostID = int.Parse(s[0]);//.Replace("hostId", "")
         int port = int.Parse(s[1]);
         channelid = int.Parse(s[2]);
+        UDPC.serverIP = ip;
+        UDPC.serverPort = int.Parse(s[3]);
+        UDPC.init();
         connectionId = NetworkTransport.Connect(hostId, ip, port, channelid, out error);
         Debug.Log("hostid=" + hostId + "error="+error);
         Debug.Log(connectionId + "ip = " + ip + "channelID=" + channelid);
@@ -249,13 +270,13 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
         {
 
             string s = "长太息以掩涕兮,哀民生之多艰";
-            byte[] b = new byte[1024];
+            byte[] b;
             string d = s;
-            while (d.Length < 512)
+            while (d.Length < 519)
             {
                 d += s;
             }
-            Array.Copy(GetBytes(d), b, 1024);
+            b = GetBytes(d);
             Debug.Log("b.length=" + b.Length+"Bcontent="+GetString(b));
             if (e % 2 == 0)
             {
@@ -280,6 +301,8 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
         
         NetworkTransport.Send(hostId, ID, channelid, msgInfo, msgInfo.Length, out error);
         Debug.Log("connectionIdHead  " + connectionId + " error= " + error.ToString()+" channelid="+channelid);
+        NetworkTransport.Send(hostId, ID, channelid, msg, msg.Length, out error);
+        return;/*
         if (msg.Length <= 1024)
         {
             NetworkTransport.Send(hostId, ID, channelid, msg, msg.Length, out error);
@@ -298,16 +321,17 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
                
             }
         }
-        
+        */
         Debug.Log("NetworkTransport.GetIncomingMessageQueueSize=" + NetworkTransport.GetOutgoingMessageQueueSize(hostId,out error));
     }
     void init()
     {
         if (hostId != -1)
             return;
+       // gameObject.AddComponent<MainThreadProcessor>().init();
         NetworkTransport.Init();
         config = new ConnectionConfig();
-        channelid = config.AddChannel(QosType.UnreliableSequenced);
+        channelid = config.AddChannel(QosType.ReliableSequenced);
         HostTopology topology = new HostTopology(config, 15);
         // hostId = NetworkTransport.AddHost(topology);
         Debug.Log("hostId1=" + hostId);
@@ -419,8 +443,8 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
    public struct StrTxt
 {
     public bool isHead;
-  public  GameObject Gtext;
-  public  string Stext;
+    public  GameObject Gtext;
+    public  string Stext;
     public int messageType;
   public StrTxt(GameObject g,string s,bool ishead)
     {
