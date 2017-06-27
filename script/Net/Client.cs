@@ -4,15 +4,15 @@ using UnityEngine.SceneManagement;
 using System.Collections.Generic;
 using System;
 using UnityEngine.Networking;
+using System.Net;
 
 public class Client : NetManager
 {
     Dictionary<int, GameObject> SyncObj = new Dictionary<int, GameObject>(30);
     int id;
-    string selfname ;
+   // string selfname;
 
-
-    public override void receiveDataHandel(int outConnectionId, byte[] buffer, int receivedSize,int TP)
+    public override void receiveDataHandel(int outConnectionId, byte[] buffer, int receivedSize, int TP)
     {
         switch (TP)
         {
@@ -23,69 +23,75 @@ public class Client : NetManager
                 MessageofSeverSideId(outConnectionId, buffer);
                 break;
             case msgType.Data:
-                if(isS2)
-                MessageofData(outConnectionId, buffer);
+                if (isS2)
+                    MessageofData(outConnectionId, buffer);
                 break;
         }
-   
-     }
+
+    }
 
     private void MessageofSeverSideId(int outConnectionId, byte[] buffer)
     {
         SceneManager.LoadScene("scene2");
         if (buffer[0] != outConnectionId)
         {
-            
+
             id = buffer[0];
         }
     }
-    
+
     private void MessageofData(int outConnectionId, byte[] buffer)
     {
-       
-        Gamobjectsinfo info;
-        SynchronizationMessage = (Dictionary<string, Gamobjectsinfo>)BytesToOBJ(buffer);
-        Debug.Log("SynchronizationMessage.length=" + SynchronizationMessage.Count);
-       /* foreach (string s in SynchronizationMessage.Keys)
-        {
-            info = SynchronizationMessage[s];
-            if (synchronizationObj.ContainsKey(s))
-            {
-                SynchronizationData(synchronizationObj[s], info);
-            }
-            else
-            {
-                Debug.Log(" synchronizationObj.Add=" + s);
 
-                GameObject gm;
-                switch (s[0])
-                {
-                    case '装':
-                        gm = Instantiate(enemyPrefeb[0]);
-                        synchronizationObj.Add(s, gm);
-                        SynchronizationData(gm, info);
-                        break;
-                    case '中':
-                        gm = Instantiate(enemyPrefeb[1]);
-                        synchronizationObj.Add(s, gm);
-                        SynchronizationData(gm, info);
-                        break;
-                    case '重':
-                        gm = Instantiate(enemyPrefeb[2]);
-                        synchronizationObj.Add(s, gm);
-                        SynchronizationData(gm, info);
-                        break;
-                    case '玩':
-                        if (info.id == id)
-                            break;
-                        gm = Instantiate(PlayePrefab);
-                        synchronizationObj.Add(s, gm);
-                        SynchronizationData(gm, info);
-                        break;
-                }
-                
-            }
-        }*/
+        SerializeUDP info;
+        SynchronizationMessage = (Dictionary<string, SerializeUDP>)BytesToOBJ(buffer);
+        Debug.Log("SynchronizationMessage.length=" + SynchronizationMessage.Count);
+         foreach (string s in SynchronizationMessage.Keys)
+         {
+             info = SynchronizationMessage[s];
+             if (synchronizationObj.ContainsKey(s))
+             {
+                 SynchronizationData(synchronizationObj[s], info);
+             }
+             else
+             {
+                 Debug.Log(" synchronizationObj.Add=" + s);
+
+                 GameObject gm;
+                 switch (s[0])
+                 {
+                     case '装':
+                         gm = Instantiate(enemyPrefeb[0]);
+                         synchronizationObj.Add(s, gm);
+                         SynchronizationData(gm, info);
+                         break;
+                     case '中':
+                         gm = Instantiate(enemyPrefeb[1]);
+                         synchronizationObj.Add(s, gm);
+                         SynchronizationData(gm, info);
+                         break;
+                     case '重':
+                         gm = Instantiate(enemyPrefeb[2]);
+                         synchronizationObj.Add(s, gm);
+                         SynchronizationData(gm, info);
+                         break;
+                     case '玩':
+                         if (info.id == id)
+                             break;
+                         gm = Instantiate(PlayePrefab);
+                         synchronizationObj.Add(s, gm);
+                         SynchronizationData(gm, info);
+                         break;
+                 }
+
+             }
+         }
+    }
+    public override void init()
+    {
+        string which = adapter.connectionClient[id].Stext;
+        string ip = which.Replace("::ffff:", "");
+        IpToObj.Add(ip, id);
     }
     Color c;
     private void MessageofColor(int outConnectionId, byte[] buffer)
@@ -96,17 +102,20 @@ public class Client : NetManager
         g = float.Parse(s[1]);
         b = float.Parse(s[2]);
         c = new Color(r, g, b);
-        
-    }
 
-    public override  void syncData()
+    }
+    //use UDP protocol transfer position info.
+    //The UDPclient class initialized in the base class
+    public override void syncData()
     {
-        var BaseContol = playerObject.GetComponent<BaseContol>();
-       // BaseContol.NetworkId = id;
-        Gamobjectsinfo info = new Gamobjectsinfo(id, 
+            var BaseContol = playerObject.GetComponent<BaseContol>();
+        // BaseContol.NetworkId = id;
+        print("entry synchronization function");
+            Gamobjectsinfo info = new Gamobjectsinfo(id,
             new byte[] { playerObject.GetComponent<BaseContol>().bullect },
             playerObject.transform.position, playerObject.transform.rotation);
-        adapter.sendmessage(adapter.connectionId, ObjectToByteArray(info), msgType.Data);
+            adapter.UDPC.sendByte(ObjectToByteArray(info));
+        //adapter.sendmessage(adapter.connectionId, ObjectToByteArray(info), msgType.Data);
     }
     bool isS2 = false;
     public override void OnLevelFinishedLoading(Scene scene, LoadSceneMode mode)
@@ -121,10 +130,10 @@ public class Client : NetManager
             playerObject.GetComponent<SpriteRenderer>().color = c;
         }
     }
-    byte[]  buffer = new byte[1024]; 
-    public  void f4resh()
+    byte[] buffer = new byte[1024];
+    public void f4resh()
     {
-        int outHostId= adapter.hostId;
+        int outHostId = adapter.hostId;
         int outConnectionId;
         int outChannelId;
         string outConnIp;
@@ -136,7 +145,7 @@ public class Client : NetManager
         do
         {
             evt =
-               NetworkTransport.ReceiveFromHost (adapter.hostId, out outConnectionId, out outChannelId, buffer, buffer.Length, out receivedSize, out error);
+               NetworkTransport.ReceiveFromHost(adapter.hostId, out outConnectionId, out outChannelId, buffer, buffer.Length, out receivedSize, out error);
             if (error != 0)
                 Debug.Log("Receive error=" + error);
 
@@ -180,4 +189,13 @@ public class Client : NetManager
 
 
     }
+    public override void processMessage(byte[] Udpdata, IPEndPoint ipinfo)
+    {
+        MessageofData(0, Udpdata);
+    }
+    private void OnDestroy()
+    {
+        Destroy(gameObject.GetComponent<UDPClient>());
+    }
+    
 }
