@@ -64,7 +64,7 @@ public class UDPClient : MonoBehaviour
             {
                 IPEndPoint anyIP = new IPEndPoint(IPAddress.Any, 0);
                 byte[] data = server.Receive(ref anyIP);
-                print("data is " + BitConverter.ToString(data) + " data length=" + data.Length);
+//                print("data is " + BitConverter.ToString(data) + " data length=" + data.Length);
                 serverHandler.processMessage(data);//delivery data to main thread
             }
             catch (ObjectDisposedException err)

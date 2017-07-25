@@ -123,7 +123,7 @@ public class UDPServer : MonoBehaviour
     public void broadCast(byte[] msg)
     {
         IPEndPoint[] players = UDPServer.toArray(this.clientsList);
-        print("players=" + clientsList.Count);
+//        print("players=" + clientsList.Count);
         
         foreach (IPEndPoint player in players)
         {

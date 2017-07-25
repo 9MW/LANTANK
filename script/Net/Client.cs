@@ -2,7 +2,6 @@
 using System.Collections;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
-using System;
 using UnityEngine.Networking;
 using System.Net;
 
@@ -10,8 +9,7 @@ public class Client : NetManager
 {
     Dictionary<int, GameObject> SyncObj = new Dictionary<int, GameObject>(30);
     int id;
-   // string selfname;
-
+    // string selfname;
     public override void receiveDataHandel(int outConnectionId, byte[] buffer, int receivedSize, int TP)
     {
         switch (TP)
@@ -26,18 +24,33 @@ public class Client : NetManager
                 if (isS2)
                     MessageofData(outConnectionId, buffer);
                 break;
+            case msgType.shoot:
+                MessageofShot(buffer,outConnectionId);
+                    break;
         }
 
     }
 
+    private void MessageofShot(byte[] buffer,int playerId)
+    {
+        string[] mg = NetWorkAdapter.splitString(buffer);
+        string key = mg[0];
+        byte bulletcategory = byte.Parse(mg[1]);
+        if (synchronizationObj.ContainsKey(key))
+        {
+            BaseContol b = synchronizationObj[key].GetComponent<BaseContol>();
+            b.frie(bulletcategory);
+        }
+        else
+        {
+            Debug.LogError("KEY " + key + " not exist at sunchronization");
+        }
+    }
     private void MessageofSeverSideId(int outConnectionId, byte[] buffer)
     {
+        print("parse string= " + NetWorkAdapter.splitString(buffer)[0]);
+         id =int.Parse( NetWorkAdapter.splitString(buffer)[0]);
         SceneManager.LoadScene("scene2");
-        if (buffer[0] != outConnectionId)
-        {
-
-            id = buffer[0];
-        }
     }
 
     private void MessageofData(int outConnectionId, byte[] buffer)
@@ -79,6 +92,7 @@ public class Client : NetManager
                          if (info.id == id)
                              break;
                          gm = Instantiate(PlayePrefab);
+                        gm.name = s;
                          synchronizationObj.Add(s, gm);
                          SynchronizationData(gm, info);
                          break;
@@ -89,11 +103,12 @@ public class Client : NetManager
     }
     public override void init()
     {
-        string which = adapter.connectionClient[id].Stext;
-        string ip = which.Replace("::ffff:", "");
-        IpToObj.Add(ip, id);
+      // string which = adapter.connectionClient[id].Stext;
+      // string ip = which.Replace("::ffff:", "");
+      //  IpToObj.Add(ip, id);
     }
     Color c;
+    Vector2 LocalPlayCoordinate;
     private void MessageofColor(int outConnectionId, byte[] buffer)
     {
         float r, g, b;
@@ -101,19 +116,22 @@ public class Client : NetManager
         r = float.Parse(s[0]);
         g = float.Parse(s[1]);
         b = float.Parse(s[2]);
-        c = new Color(r, g, b);
+        c = new Color(r, g, b,255);//255 expression transparency
+        //To set initial player position of player
+        if (playerObject != null)
+        {
+            playerObject.GetComponent<SpriteRenderer>().color = c;
+        }
+        LocalPlayCoordinate = new Vector2(float.Parse(s[3]), float.Parse(s[4]));
 
     }
     //use UDP protocol transfer position info.
     //The UDPclient class initialized in the base class
     public override void syncData()
     {
-            var BaseContol = playerObject.GetComponent<BaseContol>();
         // BaseContol.NetworkId = id;
         print("entry synchronization function");
-            Gamobjectsinfo info = new Gamobjectsinfo(id,
-            new byte[] { playerObject.GetComponent<BaseContol>().bullect },
-            playerObject.transform.position, playerObject.transform.rotation);
+        SerializeUDP info = new SerializeUDP(id, playerObject.transform);
             adapter.UDPC.sendByte(ObjectToByteArray(info));
         //adapter.sendmessage(adapter.connectionId, ObjectToByteArray(info), msgType.Data);
     }
@@ -125,9 +143,11 @@ public class Client : NetManager
             GuiAndManage gm = GameObject.FindObjectOfType<GuiAndManage>();
             gm.enemy = 0;
             playerObject = GameObject.Find("玩家1");
+            playerObject.GetComponent<BaseContol>().NetworkId = id;
             isS2 = true;
             GaneStart = true;
             playerObject.GetComponent<SpriteRenderer>().color = c;
+            playerObject.transform.position = LocalPlayCoordinate;
         }
     }
     byte[] buffer = new byte[1024];
@@ -192,6 +212,10 @@ public class Client : NetManager
     public override void processMessage(byte[] Udpdata, IPEndPoint ipinfo)
     {
         MessageofData(0, Udpdata);
+    }
+    public  void Accack(byte bullectType)
+    {
+        adapter.sendmessage(adapter.connectionId,new byte[ bullectType], msgType.shoot);
     }
     private void OnDestroy()
     {

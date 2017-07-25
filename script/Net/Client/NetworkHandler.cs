@@ -26,7 +26,7 @@ public class NetworkHandler :MonoBehaviour,INetworkHandler
         {
             return;
         }
-        Debug.Log(">> " + text);
+     //   Debug.Log(">> " +BitConverter.ToString(text));
 
         MainThreadProcessor.Instance().Enqueue(MainThreadProcessor.Instance().processMessage(text));
     }
@@ -36,7 +36,7 @@ public class NetworkHandler :MonoBehaviour,INetworkHandler
         {
             return;
         }
-        Debug.Log(">> " + text);
+      //  Debug.Log(">> " + text);
 
         MainThreadProcessor.Instance().Enqueue(MainThreadProcessor.Instance().processMessage(text,ip));
     }

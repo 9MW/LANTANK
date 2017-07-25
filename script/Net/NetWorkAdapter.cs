@@ -12,8 +12,8 @@ public class NetWorkAdapter : NetworkDiscovery
     public GameObject Roomlist;
     public GameObject text;
     private ConnectionConfig config;
-    public delegate void receiveData(int outConnectionId, byte[] buffer, int receivedSize, int mstype);
-    public receiveData Receiver;
+    public  delegate void receiveData(int outConnectionId, byte[] buffer, int receivedSize, int mstype);
+    public  receiveData Receiver;
     // Use this for initialization
     void Start()
     {
@@ -52,7 +52,7 @@ public class NetWorkAdapter : NetworkDiscovery
 NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, buffer, buffer.Length, out receivedSize, out error);
             quesize = NetworkTransport.GetIncomingMessageQueueSize(outHostId, out error);
             if (error != 0)
-                Debug.LogError("Receive error=" + error + "quesize=" + quesize);
+               print("Receive error=" + error.ToString() + "quesize=" + quesize);
             switch (evt)
             {
                 case NetworkEventType.ConnectEvent:
@@ -92,13 +92,13 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
     }
     int receiveMsgType;
     bool isHaed = true;
-    int  GetSize;
-    int conuter = 0;
-    byte[][] tmpReceive;
+    //int  GetSize;
+    //int conuter = 0;
+    //byte[][] tmpReceive;
     private void OnData(int outHostId, int outConnectionId, int outChannelId,ref byte[] buffer, int receivedSize, NetworkError error)
     {
         Debug.Log("Entry OnData receive size="+buffer.Length+ "receivedSize"+ receivedSize);
-        
+      /*  
         if (isHaed)
         {
             byte[] reallyBytes = new byte[receivedSize];
@@ -120,8 +120,8 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
             Debug.Log("GetSize=" + GetSize);
             return;
         }
-        Debug.Log("Entry Receiver");
-        if (receiveMsgType == msgType.testMessage)
+        Debug.Log("Entry Receiver");*/
+        if (buffer[0] == msgType.testMessage)
         {
             Debug.Log("Receive test message=" + NetWorkAdapter.GetString(buffer));
             isHaed = true;
@@ -156,9 +156,12 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
                  isHaed = true;
                  return;
              }   */
-        Receiver(outConnectionId, buffer, receivedSize, receiveMsgType);
-             isHaed = true;
-        buffer = new byte[50];
+        byte[] data = new byte[receivedSize-1];
+        Array.Copy(buffer,  1, data, 0, data.Length);
+        receiveMsgType = buffer[0];
+        Receiver(outConnectionId, data, receivedSize, receiveMsgType);
+        //     isHaed = true;
+        //buffer = new byte[50];
 
     }
    public UDPClient UDPC;
@@ -257,6 +260,7 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
         Debug.Log("hostid=" + hostId + "error="+error);
         Debug.Log(connectionId + "ip = " + ip + "channelID=" + channelid);
     }
+    
     int e = 0;
     public void testFunction()
     {
@@ -293,16 +297,22 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
     }
     public void sendmessage(int ID, byte[] msg, int Type)
     {
-        // byte[] msg = GetBytes("背绳墨以追曲兮, 终不察夫民心");
+
         byte error = new byte();
+        byte[] d = new byte[msg.Length + 1];
+        d[0] = (byte)Type;
+        Array.Copy(msg, 0, d, 1, msg.Length);
+        /* Comment code for send big than 1024k data.
+         * byte[] msg = GetBytes("背绳墨以追曲兮, 终不察夫民心");
         string form = Type + "," + msg.Length+","+"HEAD";// + "," + "HEAD";
         Debug.Log("msgHEAD = " + form+'|');
         byte[] msgInfo = GetBytes(form);
-        
         NetworkTransport.Send(hostId, ID, channelid, msgInfo, msgInfo.Length, out error);
         Debug.Log("connectionIdHead  " + connectionId + " error= " + error.ToString()+" channelid="+channelid);
         NetworkTransport.Send(hostId, ID, channelid, msg, msg.Length, out error);
-        return;/*
+        return;*/
+        NetworkTransport.Send(hostId, ID, channelid, d, d.Length, out error);
+        /*
         if (msg.Length <= 1024)
         {
             NetworkTransport.Send(hostId, ID, channelid, msg, msg.Length, out error);
@@ -321,8 +331,8 @@ NetworkTransport.Receive(out outHostId, out outConnectionId, out outChannelId, b
                
             }
         }
-        */
         Debug.Log("NetworkTransport.GetIncomingMessageQueueSize=" + NetworkTransport.GetOutgoingMessageQueueSize(hostId,out error));
+        */
     }
     void init()
     {
