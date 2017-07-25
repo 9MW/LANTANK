@@ -5,6 +5,7 @@ using System;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.IO;
 using UnityEngine.SceneManagement;
+using System.Text.RegularExpressions;
 
 public class NetManager : MonoBehaviour
 {
@@ -19,22 +20,20 @@ public class NetManager : MonoBehaviour
     ConnectionConfig config;
    public GameObject PlayePrefab;
     int maxAccpet;
-    GameObject[] players;
-    GameObject[] enemys;
     GameObject[] weapon;
     // Vector3[] SyncPosition;
-    GameObject[] activeObj;
-    public Dictionary<string, Gamobjectsinfo> SynchronizationMessage;
-    Dictionary<string, List<Gamobjectsinfo>> NPCPosition =new Dictionary<string, List<Gamobjectsinfo>>(5);
+    public Dictionary<string, SerializeUDP> SynchronizationMessage;
+    //Dictionary<string, List<Gamobjectsinfo>> NPCPosition =new Dictionary<string, List<Gamobjectsinfo>>(5);
     public  Dictionary<string, GameObject> synchronizationObj;
     void OnEnable()
     {
        
         synchronizationObj = new Dictionary<string, GameObject>(20);
-        SynchronizationMessage = new Dictionary<string, Gamobjectsinfo>(50);
+        SynchronizationMessage = new Dictionary<string, SerializeUDP>(50);
         //Tell our 'OnLevelFinishedLoading' function to start listening for a scene change as soon as this script is enabled.
         SceneManager.sceneLoaded += OnLevelFinishedLoading;
     }
+   public IUIHandler inData;
     private void Awake()
     {
         Environment.SetEnvironmentVariable("MONO_REFLECTION_SERIALIZER", "yes");
@@ -43,23 +42,38 @@ public class NetManager : MonoBehaviour
         enemyPrefeb[0] = (GameObject) Resources.Load("prefab/multip/装甲车", typeof(GameObject));
         enemyPrefeb[1] = (GameObject) Resources.Load("prefab/multip/中型坦克", typeof(GameObject));
         enemyPrefeb[2] = (GameObject) Resources.Load("prefab/multip/重型坦克", typeof(GameObject));
-        adapter = GetComponent<NetWorkAdapter>();
-        isSever = adapter.isServer;
+        adapter =gameObject.GetComponent<NetWorkAdapter>();
+      //  isSever = adapter.isServer;
         maxAccpet = 10;
         controlData = new int[maxAccpet*2];
         adapter.Receiver += receiveDataHandel;
+        if (gameObject.GetComponent<IUIHandler>() != null)//avoid addcomponent repeatedly
+            return;
+        inData = gameObject.AddComponent<IUIHandler>();
+        inData.receiveData += processMessage;//this delegate for deal with incoming UDP data
+        gameObject.AddComponent<NetworkHandler>();
+        gameObject.AddComponent<MainThreadProcessor>();
+        
     }
-    
-  public  void SynchronizationData(GameObject g,Gamobjectsinfo infomation) {
+    Dictionary<GameObject, Vector3> destinationList = new Dictionary<GameObject, Vector3>(27);
+    public virtual void processMessage(byte[] Udpdata,System.Net.IPEndPoint ipinfo) { }
+  public void SynchronizationData(GameObject g, SerializeUDP infomation) {
         BaseContol   operatingObj = g.GetComponent<BaseContol>();
-        g.transform.position = new Vector3(infomation.x, infomation.y, infomation.z);
+      //  g.transform.position = new Vector3(infomation.x, infomation.y, infomation.z);
         operatingObj.setDirection(infomation.angle);
-        operatingObj.frie(infomation.state[0]);
+        if (!destinationList.ContainsKey(g))
+        {
+            destinationList.Add(g, new Vector3(infomation.x, infomation.y, infomation.z));
+        }
+        else
+        {
+            destinationList[g] = new Vector3(infomation.x, infomation.y, infomation.z);
+        }
+       // SyncPosition(g, new Vector3(infomation.x, infomation.y, infomation.z));
+        //operatingObj.frie(infomation.state[0]); abandoned operating
     }
-    int enemycounter=0;
-    GameObject[][] tmpContainer;
     //assumption is clint
-  public  byte[] collectData()
+ /* public  byte[] collectData()
     {
             byte[] syncbytes;
         //if (isSever && isPlaying)
@@ -108,7 +122,8 @@ public class NetManager : MonoBehaviour
         NPCPosition.Clear();
         return syncbytes;
        // controlData[1] = c.whichBTN;
-    }
+    }*/
+   
     public virtual void syncData() {
        
     }
@@ -117,9 +132,9 @@ public class NetManager : MonoBehaviour
      *  will send message without any assurance, 
      *  but will do this faster.*/
     public bool GaneStart=false;
-    Queue<Color> availableColor = new Queue<Color>(27);
-   public void init() {
-        generateDifferColor();//use color to identify players
+   Queue<Color> availableColor = new Queue<Color>(27);
+   public virtual void init() {
+       /* generateDifferColor();//use color to identify players
         uint PN = 0;
         Debug.Log("Entry to init method adapter.connectionClient="+adapter.connectionClient.Count);
         //instance player
@@ -137,8 +152,9 @@ public class NetManager : MonoBehaviour
             player.GetComponent<SpriteRenderer>().color = tmpc;
             synchronizationObj.Add("player"+id,player);
         }
-        
+        */
      }
+
     public virtual void receiveDataHandel(int outConnectionId, byte[] buffer, int receivedSize,int MT)
     {
         if (isSever)
@@ -146,28 +162,7 @@ public class NetManager : MonoBehaviour
 
         }
     }
-    void generateDifferColor()
-    {
-        Color c;
-        int times=0;
-        for (float cr = 0; cr <= 1; cr += 0.5f)
-        {
-            
-            for (float cb = 0; cb <=1; cb += 0.5f)
-            {
-                
-                for (float cg = 0; cg <=1; cg += 0.5f)
-                {
-                    times++;
-                    Debug.Log(cg+"This is " + times + "entry for cycle"+cr); 
-                    c = new Color(cr,cg,cb);
-                    availableColor.Enqueue(c);
-                    if (times > 50)
-                        break;
-                }
-            }
-        }
-    }
+ 
     void startClinet() {
       
     }
@@ -197,24 +192,29 @@ public class NetManager : MonoBehaviour
     void startHost() {
         
     }
-    float tempTime;
+  public  Dictionary<string, int> IpToObj = new Dictionary<string, int>(27);
+    float tempTime=0;
     void Update()
     {
+        foreach (GameObject g in destinationList.Keys)
+        {
+            SyncPosition(g,destinationList[g]);
+        }
+//        Debug.Log("tempTime=" + tempTime);
         if (GaneStart)
         {
             tempTime += Time.deltaTime;
-            if (tempTime > 0.1)
+            if (tempTime > 0.05)
             {
 
                 tempTime = 0;
                 syncData();
-                //    Debug.Log("datasize=" +collectData().Length);
             }
         }
       
     }
    byte[]  buffer = new byte[1024]; 
- public virtual void fresh()
+/* public virtual void fresh()
     {
         int outHostId;
         int outConnectionId;
@@ -269,10 +269,8 @@ public class NetManager : MonoBehaviour
             }
         }
         while (evt != NetworkEventType.Nothing);
-
-
-
-    }
+        
+    }*/
     bool isHead = true;
     int receiveMsgType;
     public void OnData(int outHostId, int outConnectionId, int outChannelId, byte[] buffer, int receivedSize, NetworkError error)
@@ -311,9 +309,37 @@ public class NetManager : MonoBehaviour
             GaneStart = false;
         }
     }
-  
-    
+    public void SyncPosition(GameObject gm,Vector3 destination) {
+        gm.transform.position = Vector3.MoveTowards(gm.transform.position,destination,gm.GetComponent<BaseContol>().maxvelocity*Time.deltaTime*1.2f);
+    }
+    public void broadcast(byte[] data,int msgType)
+    {
+        foreach (int id in adapter.connectionClient.Keys)
+        {
+            adapter.sendmessage(id, data, msgType);
+        }
+    }
+    //  Codeing shot action,id is the key of syncObj dictionary
+    public void sendshotAction(byte bulletCategory, string id)
+    {
+        string info = id + "," + bulletCategory;
+        string patten = @"play\w";
+        
+        if (Regex.IsMatch(id, patten))
+        {
+            print("shotAction "+info);
+        }
+        byte[] transfer = NetWorkAdapter.GetBytes(info);
+        broadcast(transfer, msgType.shoot);
+    }
+    public string GetSyncObjKey(int connecetionId)
+    {
+        return "player" + connecetionId;
+    }
+    public BOTFireAction handle;
 }
+public  delegate void  BOTFireAction(byte Category, int AIid);
+/*
 [Serializable]
 public class Gamobjectsinfo
 {
@@ -345,12 +371,51 @@ public class Gamobjectsinfo
 
         }
     }
-}
-public static class msgType
+ 
+}*/
+public  static class  msgType
 {
    public  const int 
         color = 1,Data=0,SeverSideId=2,
-        testMessage=3;
-        
-    
+        testMessage=3,shoot=4;        
+}
+[System.Serializable]
+public class SerializeUDP
+{
+    public int id;
+    public byte angle;
+    public float x, y, z = 0;
+    public SerializeUDP(int identification, Transform transform)
+    {
+        id = identification;
+        angle = 0;
+        this.x = transform.position.x;
+        this.y = transform.position.y;
+        angle = (byte)transform.GetComponent<BaseContol>().WhichDirection;
+    }
+    public SerializeUDP(int identification, Vector3 v, Transform transform)
+    {
+        id = identification;
+        angle = 0;
+        this.x = v.x;
+        this.y = v.y;
+        angle = (byte)transform.GetComponent<BaseContol>().WhichDirection;
+        /*  switch (transform.GetComponent<BaseContol>().WhichDirection)
+          {
+              case 0:
+                  angle = 1;
+                  break;
+              case 180:
+                  angle = 2;
+                  break;
+              case 90:
+                  angle = 3;
+                  break;
+              case 270:
+                  angle = 4;
+                  break;
+             // default:
+
+          }*/
+    }
 }
