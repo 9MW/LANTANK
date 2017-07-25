@@ -9,21 +9,25 @@ public class instantiate : MonoBehaviour {
 	public AudioClip ac_shoot;
     public int fltm=1;//补给时间
     public int sttim=1;//发射时间
-    int paodanshu = 20;
+    int paodanshu = 200;
     int supplyradius = 1;//补给半径
     GameObject jd;
     BaseContol contolINfo;
     float st = 0;
     bool touchkh=false;
     Text sypd;
-
+    bool ismutiple = false;
+    NetManager nManager;
 	// Use this for initialization
 	void Start () {
+        nManager = GameObject.Find("FlowControl").GetComponent<NetManager>();
+        if (nManager != null)
+            ismutiple = true; 
         sypd = GameObject.Find("剩余炮弹数").GetComponent<Text>();
        jd = GameObject.Find("基地");
         contolINfo = transform.parent.GetComponent<BaseContol>();
-        contolINfo.frie += kh;
-        Debug.Log("transform.parent.gameObject is" + transform.parent.gameObject.name);
+        contolINfo.frie = kh;
+//        Debug.Log("transform.parent.gameObject is" + transform.parent.gameObject.name);
         /*  for (int i = 0; i < 50; i++)
           {
               for (int r = 0; r < 10; r++) {
@@ -35,21 +39,31 @@ public class instantiate : MonoBehaviour {
           }*/
         Physics2D.OverlapCircle(jd.transform.position,1);
 	}
+    //this function for execute networkplayer operation
     public  void kh(byte variety) {
+       
         if (variety == 0)
             return;
      touchkh = true ;
-    
-    
+    }
+    //this method manipulated by localplayer 
+    public void kh(byte variety,bool ishumanity)
+    {
+        if (ismutiple&&ishumanity)
+        {
+            nManager.sendshotAction(variety, contolINfo.gameObject.name + contolINfo.NetworkId);
+        }
+        if (variety == 0)
+            return;
+        touchkh = true;
     }
     public void kh()
     {
-        touchkh = true;
+        kh(1,true);
     }
 	// Update is called once per frame
 	void Update () {
         
-        sypd.text = "" + paodanshu;
         shoot(sttim);
         fillling(fltm);
         touchkh =false;
@@ -58,21 +72,21 @@ public class instantiate : MonoBehaviour {
     //trade为填装炮弹所需时间
    public void shoot(float fillingtime) 
     {
-       
+       if(st<fillingtime)
         st += Time.deltaTime;
-        if (Input.GetKeyDown("space") || touchkh && st >= fillingtime && paodanshu != 0)
+        if (touchkh&&st >= fillingtime && paodanshu != 0)
         {
 
             contolINfo.bullect = 1;
                 as_Audio.clip = ac_shoot;
                 as_Audio.Play();
                 Vector2 x = transform.TransformDirection(0, 1, 0);
-                GameObject prefab = pool.getGMOBJ(pre, transform.position, transform.rotation);
-                
+                GameObject prefab = pool.getGMOBJ(pre, transform.position, transform.rotation); 
                 paodanshu--;
-                //  OnDrawGizmosSelected();`
-                // prefab.transform.eulerAngles = new Vector3(0, 0, 90);
-                prefab.GetComponent<Rigidbody2D>().AddForce(x * danforce);
+            sypd.text = "" + paodanshu;
+            //  OnDrawGizmosSelected();`
+            // prefab.transform.eulerAngles = new Vector3(0, 0, 90);
+            prefab.GetComponent<Rigidbody2D>().AddForce(x * danforce);
             
                 pool.put(prefab, detroypd);
                 st = 0;

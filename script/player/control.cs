@@ -12,27 +12,17 @@ public class control : BaseContol, MYMSG
     public static int south = 2;//南
     public static int west = 3;//西
     public static int east = 4;//东
-    float btn = 0.5f;
     // Use contObj for initialization
     //public Vector2 speed = new Vector2(50, 50);
     public AudioSource as_Audio;
-    public float sudu = 0.5f;
     public float li = 0.5f;
-    float X;
     private void Start()
     {
         isPass = false;
     }
-
-    float Y;
     public AudioClip ac_move;
     // 2 - Store the movement
     
-    bool s;
-    bool x;
-    bool z;
-    bool r;
-    float ctbtn;
     public struct MovingJoystick
     {
         public Vector2 joystickAxis;
@@ -48,7 +38,7 @@ public class control : BaseContol, MYMSG
                 Debug.Log("contObj 等于 null");
                 return;
             }
-            movement(whichBTN, li);
+            move(whichBTN, li);
                 //move(whichBTN);
         }
     }
